@@ -376,23 +376,7 @@ After obtaining per-frame coordinates from `fire_intersections.csv`:
 
 ## 12. Common Issues and Corrective Actions
 
-### 12.1 Frame Filename Not Found
-
-**Issue:** Incorrect zero-padding (e.g., `00011` instead of `0011`)
-**Fix:** Use 4-digit numbering:
-
-- `frame4_frame_0011.png`
-
----
-
-### 12.2 PowerShell Command Formatting Errors
-
-**Issue:** Using `\` for line continuation (bash style)
-**Fix:** Use a single-line command or PowerShell backtick `` ` ``
-
----
-
-### 12.3 `solvePnPRansac` Fails
+### 12.1 `solvePnPRansac` Fails
 
 **Cause:**
 
@@ -408,7 +392,7 @@ After obtaining per-frame coordinates from `fire_intersections.csv`:
 
 ---
 
-### 12.4 `lat/lon` Remain Blank in `fire_intersections.csv`
+### 12.2 `lat/lon` Remain Blank in `fire_intersections.csv`
 
 **Cause:**
 
