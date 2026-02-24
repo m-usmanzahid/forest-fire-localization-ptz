@@ -1,4 +1,3 @@
-````markdown
 # Forest Fire Localization from a Fixed PTZ Camera
 
 ## 1. Purpose
@@ -79,7 +78,6 @@ forest_fire_localisation/
 ├── README.md
 └── requirements.txt
 ```
-````
 
 ---
 
