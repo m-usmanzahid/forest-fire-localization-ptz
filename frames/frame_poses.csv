@@ -1,0 +1,8 @@
+frame,n_gcps,n_inliers,reproj_rms_px,bearing_center_deg,elev_center_deg
+frame4_frame_0008.png,8,5,3.493,61.968,-6.688
+frame4_frame_0009.png,8,6,3.320,71.626,-7.900
+frame4_frame_0010.png,8,5,2.767,80.604,-12.013
+frame4_frame_0011.png,9,6,2.614,88.577,-11.915
+frame4_frame_0012.png,6,5,2.699,283.109,-45.887
+frame4_frame_0013.png,6,5,2.390,270.381,-46.396
+frame4_frame_0014.png,6,5,2.563,257.999,-46.040
