@@ -25,11 +25,21 @@ C) Optional DEM intersection (ray ∩ terrain)
    - If a DEM GeoTIFF is provided, marches along the ray and finds where it intersects terrain.
    - Outputs estimated fire origin latitude/longitude and range from camera.
 
-Important design choice (very important)
-----------------------------------------
-Even though solvePnP estimates a translation (tvec), this project already knows the camera's true
-physical location (lat/lon/alt). Therefore, for ray intersection we FORCE the camera origin to ENU=(0,0,0)
-to avoid small drift caused by annotation noise. We still use solvePnP for the camera ROTATION (yaw/pitch/roll).
+Important design choices
+------------------------
+1) Fixed camera origin (prevents drift):
+   - solvePnP estimates translation (tvec), but we already know the camera’s physical location.
+   - For ray intersection we FORCE the camera origin to ENU=(0,0,0) to avoid translation drift due to annotation noise.
+   - We still use solvePnP for rotation (yaw/pitch/roll), which is what determines ray direction.
+
+2) Intrinsics improvement for vertical accuracy:
+   - By default, many pipelines assume square pixels (fy = fx).
+   - For range accuracy, vertical geometry (fy) matters a lot. Some video streams are vertically cropped/rescaled.
+   - This script supports an OPTIONAL --vfov to compute fy from VFOV if you know/estimate it.
+   - If --vfov is not provided, fy=fx is used (same behavior as before).
+
+3) 20 km operational constraint:
+   - Default max range is 20 km (can be overridden with --max-range).
 
 Input CSV formats
 -----------------
@@ -52,7 +62,7 @@ Notes
 -----
 - If --dem is NOT provided, this script still outputs bearing/elevation angle, but lat/lon/range will be blank.
 - Lens distortion is ignored in this version.
-- ENU conversion uses a local approximation (sufficient for this project scale).
+- ENU conversion uses a local approximation (sufficient for ~tens of km).
 
 Example (PowerShell)
 --------------------
@@ -67,6 +77,14 @@ With DEM (full coordinates):
 python frames\\localize_fire.py `
   --camera-lat 34.534508 --camera-lon 73.003801 --camera-alt 1384.798 `
   --hfov 52.760104 --img-w 640 --img-h 480 `
+  --gcp frames\\gcp_frame4_0009.csv frames\\gcp_frame4_0011.csv frames\\gcp_frame4_tracked.csv `
+  --fire frames\\fire_pixels.csv `
+  --dem dem\\oghi_dem.tif
+
+With optional VFOV (if you want to tune vertical geometry):
+python frames\\localize_fire.py `
+  --camera-lat 34.534508 --camera-lon 73.003801 --camera-alt 1384.798 `
+  --hfov 52.760104 --vfov 42.0 --img-w 640 --img-h 480 `
   --gcp frames\\gcp_frame4_0009.csv frames\\gcp_frame4_0011.csv frames\\gcp_frame4_tracked.csv `
   --fire frames\\fire_pixels.csv `
   --dem dem\\oghi_dem.tif
@@ -139,25 +157,33 @@ def enu_to_wgs84(e: float, n: float, u: float,
 # Camera model helpers
 # --------------------------------------------------------------------------------------
 
-def build_K_from_hfov(hfov_deg: float, w: int, h: int) -> np.ndarray:
+def build_K_from_fov(hfov_deg: float, w: int, h: int, vfov_deg: Optional[float] = None) -> np.ndarray:
     """
-    Build camera intrinsics matrix K from known horizontal FOV and image size.
+    Build camera intrinsics matrix K from FOV and image size.
 
-    Assumptions:
-    - Square pixels (fx = fy)
-    - Principal point at image center
-    - No skew
+    Inputs
+    ------
+    hfov_deg : Horizontal field of view (degrees).
+    vfov_deg : Optional Vertical field of view (degrees).
+               - If provided -> fy computed from vfov
+               - If omitted  -> fy = fx (square pixel assumption)
 
-    K =
-      [ fx  0  cx ]
-      [  0 fy  cy ]
-      [  0  0   1 ]
+    Returns
+    -------
+    K (3x3) camera intrinsics matrix.
     """
     hfov = math.radians(hfov_deg)
     fx = (w / 2.0) / math.tan(hfov / 2.0)
-    fy = fx
+
+    if vfov_deg is None:
+        fy = fx
+    else:
+        vfov = math.radians(vfov_deg)
+        fy = (h / 2.0) / math.tan(vfov / 2.0)
+
     cx = w / 2.0
     cy = h / 2.0
+
     return np.array([
         [fx, 0.0, cx],
         [0.0, fy, cy],
@@ -207,16 +233,6 @@ def solve_pose_pnp(frame: str, obj_enu: np.ndarray, img_xy: np.ndarray, K: np.nd
     """
     Estimate camera pose (rotation + translation) with solvePnPRansac.
 
-    Inputs
-    ------
-    obj_enu : Nx3 array of landmark 3D points in ENU meters (world coordinates)
-    img_xy  : Nx2 array of corresponding image pixels
-    K       : camera intrinsics
-
-    Returns
-    -------
-    PoseResult with reprojection RMS and centerline direction (bearing/elev) for quality checking.
-
     Notes
     -----
     - OpenCV pose maps world -> camera:
@@ -255,7 +271,6 @@ def solve_pose_pnp(frame: str, obj_enu: np.ndarray, img_xy: np.ndarray, K: np.nd
     rms = float(np.sqrt(np.mean(err ** 2))) if len(err) > 0 else float("nan")
 
     # Camera centerline direction in world ENU for reporting:
-    # OpenCV camera forward axis is +Z in camera coords.
     R_w2c, _ = cv2.Rodrigues(rvec)
     R_c2w = R_w2c.T
     forward_world = R_c2w @ np.array([0.0, 0.0, 1.0], dtype=np.float64)
@@ -306,7 +321,7 @@ def dem_sample(ds, lat: float, lon: float) -> Optional[float]:
 
         if ds.nodata is not None and z == float(ds.nodata):
             return None
-        if z < -1000:  # common nodata sentinel guard
+        if z < -1000:
             return None
 
         return z
@@ -319,17 +334,13 @@ def intersect_ray_with_dem(
     lat0: float, lon0: float, alt0: float,
     C_enu: np.ndarray, d_enu: np.ndarray,
     step_m: float = 25.0,
-    max_range_m: float = 40000.0,
+    max_range_m: float = 20000.0,
 ) -> Optional[Tuple[float, float, float, float]]:
     """
     March along the ray and find the first terrain intersection.
 
-    Ray:
-      P(s) = C_enu + s * d_enu,  s >= 0
-
-    Returns
-    -------
-    (lat_hit, lon_hit, terrain_alt_m, range_m) or None if no hit found within max_range_m.
+    Returns:
+      (lat_hit, lon_hit, terrain_alt_m, range_m) or None
     """
     d = d_enu / (np.linalg.norm(d_enu) + 1e-12)
 
@@ -346,11 +357,9 @@ def intersect_ray_with_dem(
             s += step_m
             continue
 
-        diff = alt_ray - z_terrain  # positive = ray point above terrain
+        diff = alt_ray - z_terrain
 
-        # First crossing from above to below terrain
         if prev_diff is not None and prev_diff > 0.0 and diff <= 0.0:
-            # Linear interpolation along the segment [prev_s, s]
             t = prev_diff / (prev_diff - diff + 1e-12)
             s_hit = float(prev_s + t * (s - prev_s))
             P_hit = C_enu + s_hit * d
@@ -358,7 +367,7 @@ def intersect_ray_with_dem(
 
             z_h = dem_sample(ds, lat_h, lon_h)
             if z_h is None:
-                z_h = alt_h  # fallback
+                z_h = alt_h
 
             return lat_h, lon_h, float(z_h), s_hit
 
@@ -489,6 +498,13 @@ def main() -> None:
     ap.add_argument("--camera-alt", type=float, required=True, help="Camera altitude above sea level (meters).")
 
     ap.add_argument("--hfov", type=float, required=True, help="Calibrated horizontal FOV (degrees).")
+    ap.add_argument(
+        "--vfov",
+        type=float,
+        default=None,
+        help="Optional vertical FOV (degrees). If omitted, fy=fx is assumed."
+    )
+
     ap.add_argument("--img-w", type=int, default=640, help="Image width in pixels.")
     ap.add_argument("--img-h", type=int, default=480, help="Image height in pixels.")
 
@@ -498,7 +514,9 @@ def main() -> None:
 
     ap.add_argument("--dem", type=str, default=None, help="Optional DEM GeoTIFF path for terrain intersection.")
     ap.add_argument("--dem-step", type=float, default=25.0, help="Ray marching step size in meters (default: 25).")
-    ap.add_argument("--max-range", type=float, default=40000.0, help="Max ray range (meters) for DEM intersection.")
+
+    # 20 km operational constraint by default (override if needed)
+    ap.add_argument("--max-range", type=float, default=20000.0, help="Max ray range (meters) for DEM intersection (default: 20000).")
 
     ap.add_argument("--min-gcps", type=int, default=6, help="Minimum GCPs required per frame for PnP (default: 6).")
     ap.add_argument("--poses-out", type=str, default="frames/frame_poses.csv")
@@ -509,7 +527,7 @@ def main() -> None:
     lon0 = args.camera_lon
     alt0 = args.camera_alt
 
-    K = build_K_from_hfov(args.hfov, args.img_w, args.img_h)
+    K = build_K_from_fov(args.hfov, args.img_w, args.img_h, vfov_deg=args.vfov)
 
     # Load and merge GCP sources (manual first, tracked last recommended)
     gcp_paths = [Path(p) for p in args.gcp]
@@ -538,7 +556,6 @@ def main() -> None:
         gcps = all_gcps[frame]
 
         if len(gcps) < args.min_gcps:
-            # Not enough points to estimate stable pose
             continue
 
         # Build 3D ENU points + 2D image points
@@ -580,7 +597,7 @@ def main() -> None:
         R_w2c, _ = cv2.Rodrigues(pose.rvec)
         R_c2w = R_w2c.T
 
-        # Camera origin (fixed by project design): force to known camera location => ENU (0,0,0)
+        # Force camera origin to known physical location => ENU (0,0,0)
         C_world = np.zeros(3, dtype=np.float64)
 
         # Rotate ray into world ENU
@@ -597,7 +614,7 @@ def main() -> None:
                 f"{fire_y:.2f}",
                 f"{bearing_deg:.6f}",
                 f"{elev_deg:.6f}",
-                "", "", "", "",  # range, lat, lon, terrain_alt_m
+                "", "", "", "",
                 f"{pose.reproj_rms_px:.3f}",
                 str(pose.n_inliers),
             ])
@@ -620,7 +637,7 @@ def main() -> None:
                 f"{fire_y:.2f}",
                 f"{bearing_deg:.6f}",
                 f"{elev_deg:.6f}",
-                "", "", "", "",  # no intersection found
+                "", "", "", "",
                 f"{pose.reproj_rms_px:.3f}",
                 str(pose.n_inliers),
             ])
@@ -640,7 +657,6 @@ def main() -> None:
                 str(pose.n_inliers),
             ])
 
-    # Close DEM
     if ds is not None:
         ds.close()
 
