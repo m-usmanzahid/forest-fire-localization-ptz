@@ -81,6 +81,7 @@ forest_fire_localisation/
 ├── README.md
 └── requirements.txt
 
+```
 
 ⸻
 
@@ -89,19 +90,19 @@ forest_fire_localisation/
 This repository currently focuses on Frame 4 (daytime sequence).
 
 5.1 Camera location (from locations.txt)
-	•	Frame 4 (Oghi): 34.534508, 73.003801
+• Frame 4 (Oghi): 34.534508, 73.003801
 
 5.2 Camera altitude used for localization
-	•	Ground elevation at camera location (Google Earth): 1374.13 m
-	•	Tower height: 35 ft = 10.668 m
-	•	Camera optical center altitude: 1384.798 m
+• Ground elevation at camera location (Google Earth): 1374.13 m
+• Tower height: 35 ft = 10.668 m
+• Camera optical center altitude: 1384.798 m
 
 5.3 Frame size
-	•	Confirmed frame dimensions: 640 × 480 px
+• Confirmed frame dimensions: 640 × 480 px
 
 5.4 Operational range requirement
-	•	The localization system is designed to operate within 20 km of the camera location.
-	•	localize_fire.py should be run with --max-range 20000 (meters) to enforce this constraint.
+• The localization system is designed to operate within 20 km of the camera location.
+• localize_fire.py should be run with --max-range 20000 (meters) to enforce this constraint.
 
 ⸻
 
@@ -110,18 +111,18 @@ This repository currently focuses on Frame 4 (daytime sequence).
 6.1 Ground Control Points (GCPs)
 
 A GCP is a visible landmark with:
-	•	image pixel position (x, y)
-	•	known world coordinates (lat, lon, alt_m)
+• image pixel position (x, y)
+• known world coordinates (lat, lon, alt_m)
 
 CSV format
 
 frame,id,x,y,lat,lon,alt_m
 
 Recommended practice:
-	•	Use stable landmarks (settlements, ridge corners, mountain tops)
-	•	Avoid vegetation edges and moving objects
-	•	Use 6–12 GCPs per frame
-	•	Include alt_m for every GCP (required for 3D pose estimation)
+• Use stable landmarks (settlements, ridge corners, mountain tops)
+• Avoid vegetation edges and moving objects
+• Use 6–12 GCPs per frame
+• Include alt_m for every GCP (required for 3D pose estimation)
 
 6.2 Fire-Origin Pixels
 
@@ -132,13 +133,13 @@ Use the same CSV schema and leave lat/lon/alt_m blank for id=fire_origin.
 6.3 DEM (Required for Final Coordinates)
 
 A DEM GeoTIFF is required to compute the final ground intersection:
-	•	Format: .tif (GeoTIFF)
-	•	Recommended path: dem/oghi_dem.tif
+• Format: .tif (GeoTIFF)
+• Recommended path: dem/oghi_dem.tif
 
 Without a DEM, the system outputs bearing and elevation angle only.
 
 Coverage recommendation:
-	•	For an operational radius of approximately 20 km around the Oghi camera, ensure the DEM covers at least this area (buffer recommended).
+• For an operational radius of approximately 20 km around the Oghi camera, ensure the DEM covers at least this area (buffer recommended).
 
 ⸻
 
@@ -147,7 +148,6 @@ Coverage recommendation:
 7.1 Install Dependencies (Windows PowerShell)
 
 pip install -r requirements.txt
-
 
 ⸻
 
@@ -159,17 +159,17 @@ Extract PNG frames from the source GIF/video feed.
 If frames already exist in frames/, this step can be skipped.
 
 Expected output example:
-	•	frame4_frame_0001.png … frame4_frame_0015.png
+• frame4_frame_0001.png … frame4_frame_0015.png
 
 ⸻
 
 8.2 Step 2 — Annotate GCPs (Manual Landmark Registration)
 
 Use gcp_annotator.py to click visible landmarks and record:
-	•	landmark ID
-	•	latitude
-	•	longitude
-	•	elevation (alt_m)
+• landmark ID
+• latitude
+• longitude
+• elevation (alt_m)
 
 Example (create a new GCP file)
 
@@ -179,21 +179,20 @@ Example (append more points later)
 
 python frames\gcp_annotator.py --frame frame4_frame_0009.png --out frames\gcp_frame4_0009.csv --append
 
-
 ⸻
 
 8.3 Step 3 — Estimate Global HFOV and Per-Frame Headings (Horizontal Calibration)
 
 This step estimates:
-	•	a single global horizontal field of view (HFOV) for the camera (constant zoom assumption)
-	•	per-frame camera centerline headings (azimuth)
+• a single global horizontal field of view (HFOV) for the camera (constant zoom assumption)
+• per-frame camera centerline headings (azimuth)
 
 Example
 
 python frames\estimate_heading_and_hfov.py --camera-lat 34.534508 --camera-lon 73.003801 --image-width 640 --exclude-id gps_tetoli --csv frames\gcp_frame4_0006.csv frames\gcp_frame4_0009.csv frames\gcp_frame4_0011.csv --out frames\frame_heading_hfov.csv
 
 Output
-	•	frames/frame_heading_hfov.csv
+• frames/frame_heading_hfov.csv
 
 ⸻
 
@@ -207,11 +206,11 @@ python frames\gcp_annotator.py --frame frame4_frame_0009.png --out frames\fire_p
 python frames\gcp_annotator.py --frame frame4_frame_0011.png --out frames\fire_pixels.csv --append
 
 When prompted:
-	•	Set id = fire_origin
-	•	Leave lat/lon/alt_m blank
+• Set id = fire_origin
+• Leave lat/lon/alt_m blank
 
 Output
-	•	frames/fire_pixels.csv
+• frames/fire_pixels.csv
 
 ⸻
 
@@ -224,7 +223,7 @@ Example
 python frames\pixel_to_bearing.py --headings frames\frame_heading_hfov.csv --pixels frames\fire_pixels.csv --out frames\fire_bearings.csv
 
 Output
-	•	frames/fire_bearings.csv
+• frames/fire_bearings.csv
 
 A consistent bearing across smoke frames indicates stable fire-origin selection and horizontal calibration.
 
@@ -236,15 +235,15 @@ To reduce manual annotation effort, use track_gcps.py to propagate GCPs from see
 
 Example
 
-python frames\track_gcps.py --frames-dir frames --prefix frame4_frame_ --start 8 --end 14 --seed frames\gcp_frame4_0009.csv frames\gcp_frame4_0011.csv --out frames\gcp_frame4_tracked.csv --min-points 6 --min-score 0.40 --search-radius 220
+python frames\track*gcps.py --frames-dir frames --prefix frame4_frame* --start 8 --end 14 --seed frames\gcp_frame4_0009.csv frames\gcp_frame4_0011.csv --out frames\gcp_frame4_tracked.csv --min-points 6 --min-score 0.40 --search-radius 220
 
 Output
-	•	frames/gcp_frame4_tracked.csv
+• frames/gcp_frame4_tracked.csv
 
 Notes
-	•	The tracker uses a hybrid approach (optical flow + template matching)
-	•	It selects the best seed frame per target frame
-	•	If tracking degrades in later frames, add another manual seed frame closer to the problematic frames and re-run tracking (e.g., gcp_frame4_0012.csv)
+• The tracker uses a hybrid approach (optical flow + template matching)
+• It selects the best seed frame per target frame
+• If tracking degrades in later frames, add another manual seed frame closer to the problematic frames and re-run tracking (e.g., gcp_frame4_0012.csv)
 
 ⸻
 
@@ -253,7 +252,7 @@ Notes
 A DEM is required to convert a ray direction into a ground coordinate.
 
 Required file
-	•	dem/oghi_dem.tif
+• dem/oghi_dem.tif
 
 ⸻
 
@@ -269,8 +268,8 @@ python frames\localize_fire.py --camera-lat 34.534508 --camera-lon 73.003801 --c
 python frames\localize_fire.py --camera-lat 34.534508 --camera-lon 73.003801 --camera-alt 1384.798 --hfov 52.760104 --img-w 640 --img-h 480 --max-range 20000 --gcp frames\gcp_frame4_0009.csv frames\gcp_frame4_0011.csv frames\gcp_frame4_tracked.csv --fire frames\fire_pixels.csv --dem dem\oghi_dem.tif
 
 Outputs
-	•	frames/frame_poses.csv
-	•	frames/fire_intersections.csv
+• frames/frame_poses.csv
+• frames/fire_intersections.csv
 
 ⸻
 
@@ -281,7 +280,7 @@ This step produces a final fused estimate (lat/lon) with frame rejection and a c
 python frames\final_fire_report.py --camera-lat 34.534508 --camera-lon 73.003801 --fire frames\fire_intersections.csv --poses frames\frame_poses.csv --out frames\fire_final_report.txt
 
 Output:
-	•	frames/fire_final_report.txt
+• frames/fire_final_report.txt
 
 ⸻
 
@@ -290,27 +289,27 @@ Output:
 9.1 frames/frame_poses.csv
 
 Per-frame pose estimation summary:
-	•	n_gcps: total GCPs used
-	•	n_inliers: RANSAC inliers
-	•	reproj_rms_px: reprojection RMS error (pixels)
-	•	bearing_center_deg: camera centerline azimuth
-	•	elev_center_deg: camera centerline elevation angle
+• n_gcps: total GCPs used
+• n_inliers: RANSAC inliers
+• reproj_rms_px: reprojection RMS error (pixels)
+• bearing_center_deg: camera centerline azimuth
+• elev_center_deg: camera centerline elevation angle
 
 Quality guidance:
-	•	reproj_rms_px < 3: strong fit
-	•	3–5 px: usable
-	•	> 5 px: review GCP quality and tracking consistency
+• reproj_rms_px < 3: strong fit
+• 3–5 px: usable
+• > 5 px: review GCP quality and tracking consistency
 
 ⸻
 
 9.2 frames/fire_intersections.csv
 
 Per-frame fire localization result:
-	•	bearing_deg, elev_deg: fire ray direction
-	•	range_m: estimated distance to terrain intersection (meters)
-	•	lat, lon: estimated fire-origin coordinates (requires DEM)
-	•	terrain_alt_m: DEM elevation at intersection
-	•	reproj_rms_px, n_inliers: pose quality indicators (use for filtering)
+• bearing_deg, elev_deg: fire ray direction
+• range_m: estimated distance to terrain intersection (meters)
+• lat, lon: estimated fire-origin coordinates (requires DEM)
+• terrain_alt_m: DEM elevation at intersection
+• reproj_rms_px, n_inliers: pose quality indicators (use for filtering)
 
 ⸻
 
@@ -319,10 +318,10 @@ Per-frame fire localization result:
 Do not average all frames blindly when generating a final operational estimate.
 
 Recommended filtering criteria:
-	•	consistent bearing_deg across adjacent smoke frames
-	•	reasonable elev_deg continuity
-	•	reproj_rms_px <= 4
-	•	preferably n_inliers >= 6
+• consistent bearing_deg across adjacent smoke frames
+• reasonable elev_deg continuity
+• reproj_rms_px <= 4
+• preferably n_inliers >= 6
 
 Frames with abrupt bearing flips or unrealistic pose jumps should be excluded and re-annotated/re-tracked.
 
@@ -330,14 +329,11 @@ Frames with abrupt bearing flips or unrealistic pose jumps should be excluded an
 
 11. Final Coordinate Estimation (Multi-Frame Fusion)
 
-The final fused estimate is produced by final_fire_report.py, which:
-	1.	rejects pose-flip/outlier frames automatically,
-	2.	computes a weighted fused coordinate, and
-	3.	reports empirical spread (meters) and a conservative radius (default 500 m).
+The final fused estimate is produced by final_fire_report.py, which: 1. rejects pose-flip/outlier frames automatically, 2. computes a weighted fused coordinate, and 3. reports empirical spread (meters) and a conservative radius (default 500 m).
 
 Recommended reporting format:
-	•	Estimated fire origin: (lat, lon)
-	•	Confidence radius: 500 m (or empirical radius if larger)
+• Estimated fire origin: (lat, lon)
+• Confidence radius: 500 m (or empirical radius if larger)
 
 ⸻
 
@@ -346,28 +342,28 @@ Recommended reporting format:
 12.1 solvePnPRansac Fails
 
 Cause:
-	•	too few GCPs
-	•	poor landmark matches
-	•	incorrect tracked points
+• too few GCPs
+• poor landmark matches
+• incorrect tracked points
 
 Fix:
-	•	add more GCPs (6–12)
-	•	use stable landmarks
-	•	add an additional seed frame for tracking near problematic frames
+• add more GCPs (6–12)
+• use stable landmarks
+• add an additional seed frame for tracking near problematic frames
 
 ⸻
 
 12.2 lat/lon Remain Blank in fire_intersections.csv
 
 Cause:
-	•	DEM not provided
-	•	DEM does not cover the target region
-	•	ray does not intersect terrain within configured max range
+• DEM not provided
+• DEM does not cover the target region
+• ray does not intersect terrain within configured max range
 
 Fix:
-	•	add --dem dem\oghi_dem.tif
-	•	verify DEM coverage and camera altitude configuration
-	•	confirm --max-range 20000 is appropriate (increase only if required and DEM covers it)
+• add --dem dem\oghi_dem.tif
+• verify DEM coverage and camera altitude configuration
+• confirm --max-range 20000 is appropriate (increase only if required and DEM covers it)
 
 ⸻
 
@@ -376,29 +372,20 @@ Fix:
 Some scripts may remain in frames/ for exploratory work. These are not part of the operational pipeline and can be ignored.
 
 Examples:
-	•	click_landmarks.py
-	•	estimate_yaw.py
-	•	plot_yaw_path.py
-	•	plot_frames_on_path.py
+• click_landmarks.py
+• estimate_yaw.py
+• plot_yaw_path.py
+• plot_frames_on_path.py
 
 ⸻
 
 14. Reproducibility and Handover Requirements
 
-To reproduce the full localization workflow, a new user requires:
-	1.	this repository
-	2.	dem/oghi_dem.tif (DEM GeoTIFF)
-	3.	GCP CSV files with alt_m
-	4.	frames/fire_pixels.csv
+To reproduce the full localization workflow, a new user requires: 1. this repository 2. dem/oghi_dem.tif (DEM GeoTIFF) 3. GCP CSV files with alt_m 4. frames/fire_pixels.csv
 
-Then run, in order:
-	1.	estimate_heading_and_hfov.py
-	2.	track_gcps.py
-	3.	localize_fire.py
-	4.	final_fire_report.py
+Then run, in order: 1. estimate_heading_and_hfov.py 2. track_gcps.py 3. localize_fire.py 4. final_fire_report.py
 
 Inspect:
-	•	frames/frame_poses.csv
-	•	frames/fire_intersections.csv
-	•	frames/fire_final_report.txt
-```
+• frames/frame_poses.csv
+• frames/fire_intersections.csv
+• frames/fire_final_report.txt
