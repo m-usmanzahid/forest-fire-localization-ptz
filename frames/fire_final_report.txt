@@ -1,0 +1,47 @@
+FINAL FIRE ORIGIN ESTIMATE REPORT
+================================
+
+Camera Reference
+----------------
+Camera lat/lon: 34.534508, 73.003801
+
+Pose Reference (for flip detection)
+----------------------------------
+Reference centerline bearing (deg): 75.699
+Reference centerline elevation (deg): -9.907
+
+Frame Filtering Summary
+-----------------------
+Accepted frames: 4
+Rejected frames: 2
+
+Accepted Frames (used for fusion)
+--------------------------------
+frame, range_m, fire_bearing_deg, fire_elev_deg, lat, lon, reproj_rms_px, n_inliers
+frame4_frame_0008.png, 1203.52, 81.820404, -7.479216, 34.53603312, 73.01668098, 3.493, 5
+frame4_frame_0009.png, 1184.72, 82.519629, -7.586494, 34.53588138, 73.01649794, 3.320, 6
+frame4_frame_0010.png, 759.08, 82.609418, -10.689358, 34.53536992, 73.01186739, 2.767, 5
+frame4_frame_0011.png, 987.70, 81.294845, -10.105711, 34.53583003, 73.01428231, 2.614, 6
+
+Rejected Frames (with reasons)
+------------------------------
+frame, reasons
+frame4_frame_0012.png, range_too_small, pose_flip_bearing, pose_flip_elevation
+frame4_frame_0013.png, range_too_small, pose_flip_bearing, pose_flip_elevation
+
+Final Output
+------------
+Final fire origin (lat, lon): 34.53575386, 73.01452854
+Frames used: frame4_frame_0008.png, frame4_frame_0009.png, frame4_frame_0010.png, frame4_frame_0011.png
+Empirical max deviation (m): 247.47
+Empirical RMS deviation (m): 183.30
+Empirical 95th percentile deviation (m): 240.29
+Conservative radius (m): 500.00
+
+Notes
+-----
+- 'pose_flip_bearing'/'pose_flip_elevation' indicate the estimated camera pose is inconsistent with the
+  main pose cluster and is likely caused by tracking drift or incorrect correspondences.
+- 'range_too_small' typically indicates a failure mode where the ray intersects terrain extremely near
+  the camera due to a bad pose estimate.
+- To improve stability, add an additional manual seed GCP file near late frames and re-run tracking.
