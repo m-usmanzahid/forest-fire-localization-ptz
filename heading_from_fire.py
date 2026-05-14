@@ -8,7 +8,7 @@ pixel gives us the bearing to the fire, every other frame's heading can be
 derived directly from where the fire pixel appears in that frame.
 
     bearing_to_fire = heading + arctan((fire_x - cx) / fx)
-    → heading = bearing_to_fire - arctan((fire_x - cx) / fx)
+    -> heading = bearing_to_fire - arctan((fire_x - cx) / fx)
 
 This is exact and requires no cross-correlation or skyline matching. It is
 the most accurate per-frame heading estimator available when smoke is present.
@@ -119,7 +119,7 @@ def main():
             "fire_x":     round(fire_x, 1),
             "offset_deg": round(offset_deg, 4),
         })
-        marker = " ← anchor" if frame == anchor_name else ""
+        marker = " <- anchor" if frame == anchor_name else ""
         print(f"  {frame}: fire_x={fire_x:.1f}  offset={offset_deg:+.3f}°  "
               f"heading={heading:.3f}°{marker}")
 
@@ -130,7 +130,7 @@ def main():
         w.writeheader()
         w.writerows(results)
 
-    print(f"\nWrote {len(results)} heading(s) → {out_path}")
+    print(f"\nWrote {len(results)} heading(s) -> {out_path}")
 
 
 if __name__ == "__main__":

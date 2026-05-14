@@ -50,7 +50,7 @@ def main():
         print(f"Extracting {p.name} ...")
         n = extract_gif(p, out_dir)
         total += n
-        print(f"  → {n} frame(s)")
+        print(f"  -> {n} frame(s)")
 
     print(f"\nDone. {total} frame(s) written to {out_dir}/")
 

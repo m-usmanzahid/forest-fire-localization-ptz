@@ -142,7 +142,7 @@ def compute_horizon_profile(
 
     A, D = lat_all.shape
 
-    # Batch sample DEM — flatten → sample → reshape
+    # Batch sample DEM — flatten -> sample -> reshape
     alt_all = sample_dem_batch(
         dem_data, dem_transform,
         lat_all.ravel(), lon_all.ravel()
@@ -212,7 +212,7 @@ def main():
         for az, elev in zip(azimuths, max_elevs):
             w.writerow([f"{az:.2f}", f"{elev:.4f}"])
 
-    print(f"Wrote horizon profile → {out_path}  ({len(azimuths)} rows)")
+    print(f"Wrote horizon profile -> {out_path}  ({len(azimuths)} rows)")
 
 
 if __name__ == "__main__":

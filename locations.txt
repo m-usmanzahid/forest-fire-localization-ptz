@@ -2,7 +2,7 @@ frame1:
     Lower Topa: 33.88449    73.43678
 frame2:
     Ghora Gali: 33.87162    73.349952
-frame3:
+frame3, frame5:
     Danna Top: 34.439466, 73.347998
 frame4:
     Oghi 34.534508, 73.003801

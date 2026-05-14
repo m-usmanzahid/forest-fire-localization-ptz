@@ -100,9 +100,9 @@ def build_rotation_matrix(heading_deg: float, tilt_deg: float) -> np.ndarray:
     World convention:  X=East,  Y=North, Z=Up     (ENU).
 
     Verified:
-        H=0, T=0  → Z_cam = [0,1,0] = North  ✓
-                  → X_cam = [1,0,0] = East   ✓
-                  → Y_cam = [0,0,-1]= Down   ✓
+        H=0, T=0  -> Z_cam = [0,1,0] = North  OK
+                  -> X_cam = [1,0,0] = East   OK
+                  -> Y_cam = [0,0,-1]= Down   OK
     """
     H = math.radians(heading_deg)
     T = math.radians(tilt_deg)
@@ -194,11 +194,14 @@ def intersect_ray_dem(
     d_enu: np.ndarray,
     step_m: float = 25.0,
     max_range_m: float = 40000.0,
-) -> Optional[Tuple[float, float, float, float]]:
+    ridge_gap_limit: float = 200.0,
+) -> Optional[Tuple[float, float, float, float, str]]:
     """
     March along ray P(s) = camera_ENU + s * d_enu, find first terrain crossing.
 
-    Returns (lat, lon, terrain_alt_m, range_m) or None.
+    Returns (lat, lon, terrain_alt_m, range_m, method) or None.
+    method is "intersection" for a clean hit, or "ridge_fallback" when the ray
+    nearly grazes the terrain (gap < ridge_gap_limit) but never fully crosses.
     """
     d = d_enu / (np.linalg.norm(d_enu) + 1e-12)
     C = np.zeros(3)  # camera at ENU origin by design
@@ -207,6 +210,11 @@ def intersect_ray_dem(
     prev_s    = None
     s = step_m
 
+    # Track closest approach for ridge fallback (skip first 1 km to avoid trivial near-camera match)
+    MIN_FALLBACK_RANGE = 1000.0
+    min_gap    = float("inf")
+    min_gap_s  = step_m
+
     while s <= max_range_m:
         P = C + s * d
         lat, lon, alt_ray = enu_to_wgs84(P[0], P[1], P[2], lat0, lon0, alt0)
@@ -214,6 +222,9 @@ def intersect_ray_dem(
 
         if z_terrain is not None:
             diff = alt_ray - z_terrain  # positive = ray above terrain
+            if s >= MIN_FALLBACK_RANGE and diff < min_gap:
+                min_gap   = diff
+                min_gap_s = s
             if prev_diff is not None and prev_diff > 0.0 and diff <= 0.0:
                 # Crossed terrain — linear interpolation within this segment
                 t_frac = prev_diff / (prev_diff - diff + 1e-12)
@@ -221,11 +232,18 @@ def intersect_ray_dem(
                 P_hit  = C + s_hit * d
                 lat_h, lon_h, _ = enu_to_wgs84(P_hit[0], P_hit[1], P_hit[2], lat0, lon0, alt0)
                 z_h = sample_dem_point(data, transform, lat_h, lon_h) or (alt0 + P_hit[2])
-                return lat_h, lon_h, z_h, s_hit
+                return lat_h, lon_h, z_h, s_hit, "intersection"
             prev_diff = diff
             prev_s    = s
 
         s += step_m
+
+    # No intersection — check if ray nearly grazed terrain (ridge fallback)
+    if min_gap <= ridge_gap_limit:
+        P_close  = C + min_gap_s * d
+        lat_c, lon_c, _ = enu_to_wgs84(P_close[0], P_close[1], P_close[2], lat0, lon0, alt0)
+        z_c = sample_dem_point(data, transform, lat_c, lon_c) or (alt0 + P_close[2])
+        return lat_c, lon_c, z_c, min_gap_s, "ridge_fallback"
 
     return None
 
@@ -289,8 +307,11 @@ def main():
                     help="DEM GeoTIFF path (optional). Without it, only bearing/elevation is output.")
     ap.add_argument("--dem-step",      type=float, default=25.0,
                     help="Ray-march step in metres (default: 25).")
-    ap.add_argument("--max-range",     type=float, default=40000.0,
+    ap.add_argument("--max-range",      type=float, default=40000.0,
                     help="Max ray range in metres (default: 40000).")
+    ap.add_argument("--ridge-gap-limit", type=float, default=200.0,
+                    help="If the ray misses terrain but comes within this many metres vertically, "
+                         "report the closest approach point as a ridge_fallback estimate (default: 200).")
     ap.add_argument("--tilt-override",    type=float, default=None,
                     help="Override the tilt from calibration.json (degrees). Useful for tuning.")
     ap.add_argument("--frame-headings",   type=str, default=None,
@@ -359,20 +380,21 @@ def main():
 
         R_c2w = build_rotation_matrix(frame_heading, tilt)
 
-        # Pixel → world ray
+        # Pixel -> world ray
         d_world = pixel_to_world_ray(fire_x, fire_y, K, R_c2w)
         bearing, elev = bearing_elev_from_enu(d_world)
 
         row = {
-            "frame":       frame,
-            "fire_x":      f"{fire_x:.1f}",
-            "fire_y":      f"{fire_y:.1f}",
-            "bearing_deg": f"{bearing:.4f}",
-            "elev_deg":    f"{elev:.4f}",
-            "range_m":     "",
-            "lat":         "",
-            "lon":         "",
+            "frame":         frame,
+            "fire_x":        f"{fire_x:.1f}",
+            "fire_y":        f"{fire_y:.1f}",
+            "bearing_deg":   f"{bearing:.4f}",
+            "elev_deg":      f"{elev:.4f}",
+            "range_m":       "",
+            "lat":           "",
+            "lon":           "",
             "terrain_alt_m": "",
+            "method":        "",
         }
 
         if dem_data is not None:
@@ -382,15 +404,18 @@ def main():
                 d_world,
                 step_m=args.dem_step,
                 max_range_m=args.max_range,
+                ridge_gap_limit=args.ridge_gap_limit,
             )
             if hit is not None:
-                lat_h, lon_h, z_h, range_m = hit
+                lat_h, lon_h, z_h, range_m, method = hit
                 row["range_m"]       = f"{range_m:.1f}"
                 row["lat"]           = f"{lat_h:.8f}"
                 row["lon"]           = f"{lon_h:.8f}"
                 row["terrain_alt_m"] = f"{z_h:.2f}"
+                row["method"]        = method
+                tag = "" if method == "intersection" else "  [RIDGE FALLBACK]"
                 print(f"  {frame}: bearing={bearing:.2f}° elev={elev:.2f}° "
-                      f"range={range_m/1000:.2f} km  → ({lat_h:.5f}, {lon_h:.5f})")
+                      f"range={range_m/1000:.2f} km  -> ({lat_h:.5f}, {lon_h:.5f}){tag}")
             else:
                 print(f"  {frame}: bearing={bearing:.2f}° elev={elev:.2f}°  "
                       f"[no terrain intersection within {args.max_range/1000:.0f} km]")
@@ -400,14 +425,14 @@ def main():
         rows.append(row)
 
     fields = ["frame", "fire_x", "fire_y", "bearing_deg", "elev_deg",
-              "range_m", "lat", "lon", "terrain_alt_m"]
+              "range_m", "lat", "lon", "terrain_alt_m", "method"]
 
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         w.writerows(rows)
 
-    print(f"\nWrote {len(rows)} result(s) → {out_path}")
+    print(f"\nWrote {len(rows)} result(s) -> {out_path}")
     if dem_data is None:
         print("Note: DEM not provided — lat/lon/range are blank. "
               "Add --dem dem/oghi_dem.tif for full coordinates.")

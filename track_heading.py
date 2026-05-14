@@ -251,7 +251,7 @@ def main():
         heading = (ref_heading + shift_px * deg_per_pixel) % 360.0
 
         print(f"  {frame_path.name}: shift={shift_px:+.1f} px  "
-              f"→ heading={heading:.3f}°  confidence={conf:.3f}  "
+              f"-> heading={heading:.3f}°  confidence={conf:.3f}  "
               f"clean={clean_cols}  smoke={smoke_cols}")
 
         results.append({
@@ -268,7 +268,7 @@ def main():
         w.writeheader()
         w.writerows(results)
 
-    print(f"\nWrote {len(results)} heading(s) → {out_path}")
+    print(f"\nWrote {len(results)} heading(s) -> {out_path}")
 
 
 if __name__ == "__main__":

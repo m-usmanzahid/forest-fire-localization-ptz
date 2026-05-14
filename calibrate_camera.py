@@ -59,7 +59,7 @@ import scipy.ndimage
 def load_horizon(csv_path: str):
     """
     Load horizon_profile.csv and return a fast interpolation function.
-    Handles 360°→0° wraparound by duplicating data at boundaries.
+    Handles 360°->0° wraparound by duplicating data at boundaries.
     """
     data = np.loadtxt(csv_path, delimiter=",", skiprows=1)
     az = data[:, 0]
@@ -275,7 +275,7 @@ def calibrate(
                       f"H={best[0]:.1f}° T={best[1]:.1f}° HFOV={best[2]:.1f}°  "
                       f"cost={best_cost:.2f} px", end="\r")
 
-    print(f"\n  Coarse result → heading={best[0]:.1f}° tilt={best[1]:.1f}° "
+    print(f"\n  Coarse result -> heading={best[0]:.1f}° tilt={best[1]:.1f}° "
           f"HFOV={best[2]:.1f}°  cost={best_cost:.2f} px")
 
     # --- Fine optimisation (Nelder-Mead) ---
@@ -294,7 +294,7 @@ def calibrate(
     h_opt = h_opt % 360.0
     cost_opt = compute_cost(h_opt, t_opt, f_opt, skyline_v, horizon_interp, W, H)
 
-    print(f"  Fine result   → heading={h_opt:.3f}° tilt={t_opt:.3f}° "
+    print(f"  Fine result   -> heading={h_opt:.3f}° tilt={t_opt:.3f}° "
           f"HFOV={f_opt:.3f}°  cost={cost_opt:.2f} px")
 
     return {
@@ -368,7 +368,10 @@ def main():
     ap = argparse.ArgumentParser(
         description="Calibrate camera heading/tilt/HFOV via skyline matching."
     )
-    ap.add_argument("--frame",    required=True, help="Clear PNG frame to calibrate from.")
+    ap.add_argument("--frame",    required=True, nargs="+",
+                    help="One or more PNG frames to calibrate from. "
+                         "When multiple are given their detected skylines are averaged "
+                         "before optimisation, reducing per-frame noise.")
     ap.add_argument("--horizon",  required=True, help="horizon_profile.csv from build_horizon.py.")
     ap.add_argument("--img-w",    type=int, default=640, help="Image width in pixels.")
     ap.add_argument("--img-h",    type=int, default=480, help="Image height in pixels.")
@@ -388,30 +391,38 @@ def main():
     ap.add_argument("--out",      default="calibration.json", help="Output JSON (default: calibration.json).")
     args = ap.parse_args()
 
-    # Load image
-    frame_path = Path(args.frame)
-    if not frame_path.exists():
-        raise FileNotFoundError(f"Frame not found: {frame_path}")
-    image = cv2.imread(str(frame_path))
-    if image is None:
-        raise ValueError(f"Could not read image: {frame_path}")
-
-    H_img, W_img = image.shape[:2]
-    W = args.img_w or W_img
-    H = args.img_h or H_img
-
     # Load horizon profile
     print(f"Loading horizon profile: {args.horizon}")
     horizon_interp = load_horizon(args.horizon)
 
-    # Night-mode preprocessing (must happen before skyline detection)
-    if args.night:
-        print("Night mode: removing blue overlays and applying CLAHE ...")
-        image = preprocess_night(image)
+    # Detect and average skylines across all provided frames
+    skylines = []
+    W, H = args.img_w, args.img_h
+    last_image = None
+    for fp in args.frame:
+        frame_path = Path(fp)
+        if not frame_path.exists():
+            raise FileNotFoundError(f"Frame not found: {frame_path}")
+        image = cv2.imread(str(frame_path))
+        if image is None:
+            raise ValueError(f"Could not read image: {frame_path}")
+        H_img, W_img = image.shape[:2]
+        if not args.img_w:
+            W = W_img
+        if not args.img_h:
+            H = H_img
+        if args.night:
+            image = preprocess_night(image)
+        skylines.append(detect_skyline(image, search_frac=args.sky_frac))
+        last_image = image
 
-    # Detect skyline
-    print(f"Detecting skyline in image (searching top {args.sky_frac*100:.0f}% of rows) ...")
-    skyline_v = detect_skyline(image, search_frac=args.sky_frac)
+    if len(skylines) == 1:
+        print(f"Detecting skyline in image (searching top {args.sky_frac*100:.0f}% of rows) ...")
+        skyline_v = skylines[0]
+    else:
+        print(f"Averaging skylines from {len(skylines)} frames "
+              f"(searching top {args.sky_frac*100:.0f}% of rows each) ...")
+        skyline_v = np.mean(np.stack(skylines, axis=0), axis=0)
 
     # Calibrate
     print("Running calibration search ...")
@@ -424,17 +435,17 @@ def main():
         heading_min=args.heading_min,
         heading_max=args.heading_max,
     )
-    cal["frame"] = frame_path.name
+    cal["frame"] = ", ".join(Path(f).name for f in args.frame)
 
     # Save
     out_path = Path(args.out)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(cal, f, indent=2)
-    print(f"\nCalibration saved → {out_path}")
+    print(f"\nCalibration saved -> {out_path}")
     print(json.dumps(cal, indent=2))
 
     if args.show:
-        show_result(image, skyline_v, cal, horizon_interp, W, H)
+        show_result(last_image, skyline_v, cal, horizon_interp, W, H)
 
 
 if __name__ == "__main__":

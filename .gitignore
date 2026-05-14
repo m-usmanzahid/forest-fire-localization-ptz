@@ -1,0 +1,13 @@
+# Generated DEM — too large for GitHub (>100 MB). Regenerate with:
+#   python download_copernicus_dem.py --out dem/copernicus_dem.tif
+dem/copernicus_dem.tif
+
+# Temporary calibration files
+_tmp_cal.json
+calibration_frame4_cop.json
+calibration_frame5_tmp.json
+output/fire_locations_frame4_cop.csv
+
+# Python
+__pycache__/
+*.pyc
