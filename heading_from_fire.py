@@ -133,5 +133,89 @@ def main():
     print(f"\nWrote {len(results)} heading(s) -> {out_path}")
 
 
+# ---------------------------------------------------------------------------
+# Importable run() entry point
+# ---------------------------------------------------------------------------
+
+def run(
+    fire: str,
+    calibration: str,
+    anchor_frame: str,
+    anchor_heading: float = None,
+    img_w: int = 640,
+    out: str = "frame_headings.csv",
+) -> tuple:
+    """
+    Compute per-frame headings and save CSV.
+    Returns (out_path, headings_dict) where headings_dict maps frame name -> heading_deg.
+    Importable by pipeline.py.
+    """
+    import csv as _csv
+    import json as _json
+
+    with open(calibration, "r", encoding="utf-8") as f:
+        cal = _json.load(f)
+    hfov = float(cal["hfov_deg"])
+
+    W  = img_w
+    cx = W / 2.0
+    fx = (W / 2.0) / math.tan(math.radians(hfov / 2.0))
+    print(f"HFOV={hfov:.3f}°  fx={fx:.1f}  cx={cx:.1f}")
+
+    fire_pixels = {}
+    with open(fire, "r", encoding="utf-8") as f:
+        for row in _csv.DictReader(f):
+            frame = (row.get("frame") or "").strip()
+            try:
+                x = float(row["x"])
+            except (KeyError, ValueError):
+                continue
+            if frame:
+                fire_pixels[frame] = x
+
+    anchor_name = Path(anchor_frame).name
+    if anchor_name not in fire_pixels:
+        raise ValueError(
+            f"Anchor frame '{anchor_name}' not found in {fire}.\n"
+            f"Available frames: {list(fire_pixels.keys())}"
+        )
+
+    resolved_anchor_heading = (anchor_heading if anchor_heading is not None
+                                else float(cal["heading_deg"]))
+    print(f"Anchor heading: {resolved_anchor_heading:.3f}°")
+
+    anchor_x      = fire_pixels[anchor_name]
+    anchor_offset = math.degrees(math.atan((anchor_x - cx) / fx))
+    bearing_fire  = resolved_anchor_heading + anchor_offset
+
+    print(f"Anchor frame: {anchor_name}  fire_x={anchor_x:.1f}  "
+          f"offset={anchor_offset:+.3f}°  bearing_to_fire={bearing_fire:.3f}°\n")
+
+    results = []
+    headings_out = {}
+    for frame, fire_x in sorted(fire_pixels.items()):
+        offset_deg = math.degrees(math.atan((fire_x - cx) / fx))
+        hdg        = (bearing_fire - offset_deg) % 360.0
+        results.append({
+            "frame":       frame,
+            "heading_deg": round(hdg, 4),
+            "fire_x":      round(fire_x, 1),
+            "offset_deg":  round(offset_deg, 4),
+        })
+        headings_out[frame] = hdg
+        marker = " <- anchor" if frame == anchor_name else ""
+        print(f"  {frame}: fire_x={fire_x:.1f}  offset={offset_deg:+.3f}°  "
+              f"heading={hdg:.3f}°{marker}")
+
+    out_path = Path(out)
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=["frame", "heading_deg", "fire_x", "offset_deg"])
+        w.writeheader()
+        w.writerows(results)
+
+    print(f"\nWrote {len(results)} heading(s) -> {out_path}")
+    return str(out_path), headings_out
+
+
 if __name__ == "__main__":
     main()

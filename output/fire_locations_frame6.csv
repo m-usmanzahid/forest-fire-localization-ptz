@@ -1,0 +1,4 @@
+frame,fire_x,fire_y,bearing_deg,elev_deg,range_m,lat,lon,terrain_alt_m,method
+frame6_frame_0006.png,517.0,295.0,129.5101,-9.7155,1777.5,34.42945319,73.36272070,851.90,intersection
+frame6_frame_0008.png,466.0,308.0,129.4864,-10.7301,1633.0,34.43030092,73.36148555,848.21,intersection
+frame6_frame_0010.png,428.0,302.0,129.4436,-10.3922,1683.3,34.43001654,73.36192523,848.22,intersection

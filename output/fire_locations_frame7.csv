@@ -1,0 +1,4 @@
+frame,fire_x,fire_y,bearing_deg,elev_deg,range_m,lat,lon,terrain_alt_m,method
+frame7_frame_0001.png,474.0,97.0,142.0945,1.9786,9900.0,34.36933732,73.41420748,1277.66,ridge_fallback
+frame7_frame_0003.png,275.0,93.0,142.3813,2.3232,9975.0,34.36854754,73.41426436,1281.68,ridge_fallback
+frame7_frame_0005.png,80.0,94.0,142.6426,2.1398,10000.0,34.36811172,73.41404477,1285.96,ridge_fallback
